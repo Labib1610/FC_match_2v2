@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doubles Up — 2v2 Tournament Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1220;
+    --surface:#141B2D;
+    --surface-2:#1B2440;
+    --surface-3:#222C49;
+    --border:#28324E;
+    --text:#EAF0FB;
+    --text-dim:#8C97B3;
+    --accent:#D4F154;
+    --accent-ink:#15210A;
+    --accent2:#FF6B4A;
+    --win:#4ADE80;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(212,241,84,0.06), transparent 40%),
+      radial-gradient(circle at 90% 20%, rgba(255,107,74,0.07), transparent 45%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    padding:24px 16px 60px;
+    min-height:100vh;
+  }
+  .app{max-width:760px;margin:0 auto;}
+
+  /* Top bar */
+  .topbar{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+    margin-bottom:22px;flex-wrap:wrap;
+  }
+  .brand .kicker{
+    font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.72rem;
+    letter-spacing:0.18em;color:var(--accent);text-transform:uppercase;
+  }
+  .brand h1{
+    margin:2px 0 0;font-family:'Rajdhani',sans-serif;font-weight:700;
+    font-size:2rem;letter-spacing:0.01em;line-height:1;
+  }
+  .brand p{margin:4px 0 0;color:var(--text-dim);font-size:0.85rem;}
+  .topbar-right{display:flex;align-items:center;gap:10px;}
+  .status-chip{
+    font-family:'Rajdhani',sans-serif;font-weight:600;font-size:0.8rem;
+    letter-spacing:0.04em;background:var(--surface-2);border:1px solid var(--border);
+    border-radius:999px;padding:6px 14px;color:var(--accent);white-space:nowrap;
+  }
+  .ghost-btn{
+    background:transparent;border:1px solid var(--border);color:var(--text-dim);
+    font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.04em;
+    border-radius:999px;padding:7px 14px;font-size:0.8rem;cursor:pointer;
+    transition:all 0.15s;
+  }
+  .ghost-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+
+  /* Cards */
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px;margin-bottom:18px;
+    animation:rise 0.35s ease both;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .card-head{display:flex;align-items:baseline;gap:10px;margin-bottom:16px;
+    border-bottom:1px dashed var(--border);padding-bottom:14px;}
+  .step-tag{
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.7rem;letter-spacing:0.14em;
+    color:var(--accent2);background:rgba(255,107,74,0.12);border-radius:6px;padding:3px 8px;
+  }
+  .card-head h2{margin:0;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:1.25rem;}
+
+  /* Player count stepper */
+  .player-count-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+  .player-count-row label{font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.05em;
+    text-transform:uppercase;font-size:0.8rem;color:var(--text-dim);}
+  .stepper{display:flex;align-items:center;gap:14px;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:999px;padding:6px 8px;}
+  .stepper button{
+    width:30px;height:30px;border-radius:50%;border:none;background:var(--surface-3);
+    color:var(--text);font-size:1.1rem;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;transition:background 0.15s;line-height:0;
+  }
+  .stepper button:hover:not(:disabled){background:var(--accent);color:var(--accent-ink);}
+  .stepper button:disabled{opacity:0.35;cursor:not-allowed;}
+  .stepper span{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.2rem;min-width:18px;text-align:center;}
+
+  /* Name grid */
+  .name-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;}
+  .name-field{
+    display:flex;align-items:center;gap:8px;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:10px;padding:6px 8px;
+  }
+  .name-field:focus-within{border-color:var(--accent);}
+  .avatar{
+    width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:0.85rem;color:var(--accent-ink);
+    flex-shrink:0;
+  }
+  .name-field input{
+    border:none;background:transparent;color:var(--text);font-size:0.95rem;width:100%;
+    font-family:'Inter',sans-serif;outline:none;
+  }
+  .coverage-note{
+    font-size:0.78rem;color:var(--text-dim);margin:12px 0 18px;line-height:1.5;
+  }
+  .coverage-note.perfect{color:var(--win);}
+
+  .primary-btn{
+    width:100%;border:none;border-radius:10px;padding:14px;cursor:pointer;
+    background:var(--accent);color:var(--accent-ink);
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;
+    letter-spacing:0.04em;text-transform:uppercase;transition:transform 0.12s, box-shadow 0.12s;
+  }
+  .primary-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(212,241,84,0.25);}
+  .primary-btn:active{transform:translateY(0);}
+
+  /* Leaderboard */
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:0.88rem;}
+  th,td{padding:10px 8px;text-align:center;white-space:nowrap;}
+  th{
+    font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.05em;
+    color:var(--text-dim);font-size:0.72rem;text-transform:uppercase;cursor:pointer;
+    border-bottom:1px solid var(--border);user-select:none;
+  }
+  th:hover{color:var(--accent);}
+  th.active-sort{color:var(--accent);}
+  th.player-col,td.player-col{text-align:left;}
+  tbody tr{border-bottom:1px solid var(--border);}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  .rank-cell{font-family:'Rajdhani',sans-serif;font-weight:700;width:28px;}
+  .player-cell{display:flex;align-items:center;gap:8px;font-weight:600;}
+  .player-cell .avatar{width:24px;height:24px;font-size:0.7rem;}
+  .pts-cell{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent);font-size:1rem;
+    font-variant-numeric:tabular-nums;}
+  td{font-variant-numeric:tabular-nums;color:var(--text);}
+  .diff-pos{color:var(--win);}
+  .diff-neg{color:var(--accent2);}
+
+  .champion-banner{
+    margin-top:16px;border-radius:10px;padding:14px 16px;
+    background:linear-gradient(120deg, rgba(212,241,84,0.16), rgba(255,107,74,0.1));
+    border:1px solid var(--accent);display:flex;align-items:center;gap:10px;
+    font-family:'Rajdhani',sans-serif;font-weight:600;
+    animation:rise 0.4s ease both;
+  }
+  .champion-banner .trophy{font-size:1.6rem;}
+  .champion-banner b{color:var(--accent);font-size:1.05rem;}
+
+  /* Progress */
+  .progress-track{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-bottom:6px;}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));
+    width:0%;transition:width 0.3s ease;}
+  .progress-label{font-size:0.78rem;color:var(--text-dim);margin-bottom:18px;
+    font-family:'Rajdhani',sans-serif;letter-spacing:0.03em;}
+
+  /* Matches */
+  .matches-grid{display:flex;flex-direction:column;gap:12px;}
+  .match-card{
+    border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--surface-2);
+    transition:border-color 0.2s;
+  }
+  .match-top{display:flex;align-items:center;gap:10px;}
+  .team-block{
+    flex:1;display:flex;flex-direction:column;gap:6px;border-radius:10px;padding:10px 8px;
+    border:1px solid transparent;transition:all 0.2s;
+  }
+  .team-block.winner{border-color:var(--win);background:rgba(74,222,128,0.08);}
+  .team-players{display:flex;flex-direction:column;gap:4px;}
+  .team-player{display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:500;}
+  .team-player .avatar{width:22px;height:22px;font-size:0.65rem;}
+  .vs-divider{
+    font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--text-dim);font-size:0.75rem;
+    letter-spacing:0.08em;flex-shrink:0;width:28px;text-align:center;
+  }
+  .score-box{display:flex;align-items:center;gap:4px;margin-top:4px;}
+  .score-box input{
+    width:38px;text-align:center;background:var(--surface-3);border:1px solid var(--border);
+    border-radius:6px;color:var(--text);font-family:'Rajdhani',sans-serif;font-weight:700;
+    font-size:1rem;padding:4px 0;outline:none;
+  }
+  .score-box input:focus{border-color:var(--accent);}
+  .step-btn{
+    width:20px;height:20px;border-radius:5px;border:1px solid var(--border);background:var(--surface-3);
+    color:var(--text-dim);cursor:pointer;font-size:0.85rem;line-height:0;display:flex;
+    align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .step-btn:hover{color:var(--accent);border-color:var(--accent);}
+  .bye-row{
+    margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);
+    display:flex;align-items:center;gap:8px;font-size:0.76rem;color:var(--text-dim);flex-wrap:wrap;
+  }
+  .bye-row .avatar{width:18px;height:18px;font-size:0.55rem;}
+  .bye-row .bye-names{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
+
+  @media (max-width:540px){
+    .name-grid{grid-template-columns:1fr;}
+    .match-top{flex-wrap:wrap;}
+    .vs-divider{width:100%;order:2;text-align:center;padding:2px 0;}
+    .team-block:first-of-type{order:1;}
+    .team-block:last-of-type{order:3;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="kicker">2v2 Round Robin</div>
+      <h1>Doubles Up</h1>
+      <p>Everyone partners with everyone — once.</p>
+    </div>
+    <div class="topbar-right">
+      <span class="status-chip" id="statusChip" hidden></span>
+      <button class="ghost-btn" id="resetBtn" hidden>Reset</button>
+    </div>
+  </div>
+
+  <section class="card" id="setupCard">
+    <div class="card-head">
+      <span class="step-tag">Step 1</span>
+      <h2>Add players</h2>
+    </div>
+
+    <div class="player-count-row">
+      <label>Number of players</label>
+      <div class="stepper">
+        <button id="decBtn" aria-label="Remove player">−</button>
+        <span id="countDisplay">5</span>
+        <button id="incBtn" aria-label="Add player">+</button>
+      </div>
+    </div>
+
+    <div class="name-grid" id="nameGrid"></div>
+    <p class="coverage-note" id="coverageNote">Doubles needs at least 4 players. Pick 4–10.</p>
+    <button class="primary-btn" id="generateBtn">Shuffle &amp; Generate Matches</button>
+  </section>
+
+  <section class="card" id="leaderboardCard" hidden>
+    <div class="card-head">
+      <span class="step-tag">Step 2</span>
+      <h2>Leaderboard</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th></th><th class="player-col" data-key="name">Player</th>
+            <th data-key="p" title="Played">P</th>
+            <th data-key="w" title="Wins">W</th>
+            <th data-key="l" title="Losses">L</th>
+            <th data-key="pf" title="Points scored">PF</th>
+            <th data-key="pa" title="Points conceded">PA</th>
+            <th data-key="diff" title="Score differential">Diff</th>
+            <th data-key="pts" title="3 per win, 1 per tie" class="active-sort">Pts</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody"></tbody>
+      </table>
+    </div>
+    <div class="champion-banner" id="championBanner" hidden></div>
+  </section>
+
+  <section class="card" id="matchesCard" hidden>
+    <div class="card-head">
+      <span class="step-tag">Step 3</span>
+      <h2>Match Schedule</h2>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">0 of 0 matches scored</div>
+    <div class="matches-grid" id="matchesContainer"></div>
+  </section>
+
+</div>
+
+<script>
+  const MIN_PLAYERS = 4, MAX_PLAYERS = 10;
+  const PALETTE = ['#D4F154','#FF6B4A','#5EC8F2','#C792EA','#FF8FB3','#FFD166','#7CF5C4','#9D8CFF','#FFAA5C','#6FE3DE'];
+
+  let count = 5;
+  let nameValues = new Array(MAX_PLAYERS).fill('');
+  let players = [];      // {id, name, color}
+  let matches = [];      // {team1:[id,id], team2:[id,id], byes:[id,...], score1, score2}
+  let sortKey = 'pts';
+  let sortDir = -1;       // -1 desc, 1 asc
+
+  function initials(name){ return (name.trim()[0] || '?').toUpperCase(); }
+
+  function renderNameGrid(){
+    document.getElementById('countDisplay').textContent = count;
+    document.getElementById('decBtn').disabled = count <= MIN_PLAYERS;
+    document.getElementById('incBtn').disabled = count >= MAX_PLAYERS;
+    const grid = document.getElementById('nameGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < count; i++){
+      const field = document.createElement('div');
+      field.className = 'name-field';
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.style.background = PALETTE[i];
+      av.textContent = initials(nameValues[i] || `P${i+1}`);
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = `Player ${i+1} name`;
+      input.value = nameValues[i];
+      input.addEventListener('input', () => {
+        nameValues[i] = input.value;
+        av.textContent = initials(input.value || `P${i+1}`);
+      });
+      field.appendChild(av);
+      field.appendChild(input);
+      grid.appendChild(field);
+    }
+    updateCoverageNote();
+  }
+
+  function totalEdges(n){ return n * (n - 1) / 2; }
+
+  function updateCoverageNote(){
+    const note = document.getElementById('coverageNote');
+    const edges = totalEdges(count);
+    if (edges % 2 === 0){
+      note.textContent = `With ${count} players, every one of the ${edges} possible partnerships fits perfectly — each pair teams up exactly once.`;
+      note.classList.add('perfect');
+    } else {
+      note.textContent = `With ${count} players there are ${edges} possible partnerships — an odd number, so perfect 1-time coverage isn't mathematically possible. ${edges - 1} of ${edges} will be scheduled; one pairing sits out.`;
+      note.classList.remove('perfect');
+    }
+  }
+
+  document.getElementById('decBtn').addEventListener('click', () => { if (count > MIN_PLAYERS){ count--; renderNameGrid(); } });
+  document.getElementById('incBtn').addEventListener('click', () => { if (count < MAX_PLAYERS){ count++; renderNameGrid(); } });
+
+  // ---- Matching algorithm: pair up all C(N,2) partnerships into 2v2 matches ----
+  function shuffleArr(arr){
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function disjoint(e1, e2){
+    return e1[0] !== e2[0] && e1[0] !== e2[1] && e1[1] !== e2[0] && e1[1] !== e2[1];
+  }
+  function buildMatchEdges(n){
+    const edges = [];
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) edges.push([i, j]);
+
+    let best = null;
+    for (let attempt = 0; attempt < 60; attempt++){
+      const pool = shuffleArr(edges);
+      const used = new Array(pool.length).fill(false);
+      const built = [];
+      for (let i = 0; i < pool.length; i++){
+        if (used[i]) continue;
+        const candidates = [];
+        for (let j = i + 1; j < pool.length; j++){
+          if (!used[j] && disjoint(pool[i], pool[j])) candidates.push(j);
+        }
+        if (candidates.length > 0){
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          used[i] = true; used[pick] = true;
+          built.push([pool[i], pool[pick]]);
+        }
+      }
+      const leftover = used.filter(u => !u).length;
+      if (!best || leftover < best.leftover) best = { built, leftover };
+      if (best.leftover <= edges.length % 2) break;
+    }
+    return best.built;
+  }
+
+  function generateTournament(){
+    players = [];
+    for (let i = 0; i < count; i++){
+      players.push({ id: i, name: (nameValues[i].trim() || `Player ${i+1}`), color: PALETTE[i] });
+    }
+    const edgePairs = buildMatchEdges(count);
+    const allIds = players.map(p => p.id);
+
+    matches = shuffleArr(edgePairs).map(([eA, eB]) => {
+      const swap = Math.random() > 0.5;
+      const team1 = swap ? eB : eA;
+      const team2 = swap ? eA : eB;
+      const used = new Set([...team1, ...team2]);
+      const byes = allIds.filter(id => !used.has(id));
+      return { team1: shuffleArr(team1), team2: shuffleArr(team2), byes, score1: null, score2: null };
+    });
+
+    document.getElementById('leaderboardCard').hidden = false;
+    document.getElementById('matchesCard').hidden = false;
+    document.getElementById('resetBtn').hidden = false;
+    document.getElementById('statusChip').hidden = false;
+
+    renderMatches();
+    updateLeaderboard();
+  }
+
+  function playerById(id){ return players.find(p => p.id === id); }
+
+  function avatarHTML(p, size){
+    return `<span class="avatar" style="background:${p.color};${size ? `width:${size}px;height:${size}px;font-size:${size*0.4}px;` : ''}">${initials(p.name)}</span>`;
+  }
+
+  function renderMatches(){
+    const container = document.getElementById('matchesContainer');
+    container.innerHTML = '';
+    matches.forEach((m, idx) => {
+      const t1 = m.team1.map(playerById);
+      const t2 = m.team2.map(playerById);
+      const card = document.createElement('div');
+      card.className = 'match-card';
+      card.dataset.idx = idx;
+
+      const byeHTML = m.byes.length > 0 ? `
+        <div class="bye-row">
+          <span>Sitting out:</span>
+          <span class="bye-names">${m.byes.map(id => { const p = playerById(id); return avatarHTML(p,18) + ' ' + p.name; }).join(', ')}</span>
+        </div>` : '';
+
+      card.innerHTML = `
+        <div class="match-top">
+          <div class="team-block" data-team="1">
+            <div class="team-players">
+              ${t1.map(p => `<span class="team-player">${avatarHTML(p)}${p.name}</span>`).join('')}
+            </div>
+            <div class="score-box">
+              <button class="step-btn" data-act="dec" data-team="1">−</button>
+              <input type="number" min="0" inputmode="numeric" data-team="1" placeholder="0">
+              <button class="step-btn" data-act="inc" data-team="1">+</button>
+            </div>
+          </div>
+          <div class="vs-divider">VS</div>
+          <div class="team-block" data-team="2">
+            <div class="team-players">
+              ${t2.map(p => `<span class="team-player">${avatarHTML(p)}${p.name}</span>`).join('')}
+            </div>
+            <div class="score-box">
+              <button class="step-btn" data-act="dec" data-team="2">−</button>
+              <input type="number" min="0" inputmode="numeric" data-team="2" placeholder="0">
+              <button class="step-btn" data-act="inc" data-team="2">+</button>
+            </div>
+          </div>
+        </div>
+        ${byeHTML}
+      `;
+
+      card.querySelectorAll('input[type="number"]').forEach(inp => {
+        inp.addEventListener('input', () => setScore(idx, Number(inp.dataset.team), inp.value === '' ? null : parseInt(inp.value)));
+      });
+      card.querySelectorAll('.step-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const team = Number(btn.dataset.team);
+          const input = card.querySelector(`input[data-team="${team}"]`);
+          let val = parseInt(input.value) || 0;
+          val = btn.dataset.act === 'inc' ? val + 1 : Math.max(0, val - 1);
+          input.value = val;
+          setScore(idx, team, val);
+        });
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  function setScore(matchIndex, team, value){
+    if (team === 1) matches[matchIndex].score1 = value;
+    else matches[matchIndex].score2 = value;
+
+    const card = document.querySelector(`.match-card[data-idx="${matchIndex}"]`);
+    const m = matches[matchIndex];
+    const t1block = card.querySelector('.team-block[data-team="1"]');
+    const t2block = card.querySelector('.team-block[data-team="2"]');
+    t1block.classList.remove('winner'); t2block.classList.remove('winner');
+    if (m.score1 !== null && m.score2 !== null && m.score1 !== m.score2){
+      (m.score1 > m.score2 ? t1block : t2block).classList.add('winner');
+    }
+
+    updateLeaderboard();
+    updateProgress();
+  }
+
+  function computeStats(){
+    const stats = {};
+    players.forEach(p => { stats[p.id] = { id:p.id, name:p.name, color:p.color, p:0,w:0,l:0,t:0,pf:0,pa:0,diff:0,pts:0 }; });
+
+    matches.forEach(m => {
+      if (m.score1 === null || m.score2 === null) return;
+      const apply = (ids, mine, theirs) => ids.forEach(id => {
+        const s = stats[id];
+        s.p++; s.pf += mine; s.pa += theirs; s.diff += (mine - theirs);
+        if (mine > theirs){ s.w++; s.pts += 3; }
+        else if (mine < theirs){ s.l++; }
+        else { s.t++; s.pts += 1; }
+      });
+      apply(m.team1, m.score1, m.score2);
+      apply(m.team2, m.score2, m.score1);
+    });
+    return Object.values(stats);
+  }
+
+  function defaultSorted(stats){
+    return stats.slice().sort((a,b) => (b.pts - a.pts) || (b.diff - a.diff) || (b.pf - a.pf));
+  }
+
+  function updateLeaderboard(){
+    const stats = computeStats();
+    let rows;
+    if (sortKey === 'name'){
+      rows = stats.slice().sort((a,b) => sortDir * a.name.localeCompare(b.name));
+    } else if (sortKey === 'pts'){
+      rows = defaultSorted(stats);
+      if (sortDir === 1) rows.reverse();
+    } else {
+      rows = stats.slice().sort((a,b) => sortDir * (a[sortKey] - b[sortKey]));
+    }
+
+    const tbody = document.getElementById('leaderboardBody');
+    tbody.innerHTML = '';
+    const medals = ['🥇','🥈','🥉'];
+    rows.forEach((s, i) => {
+      const tr = document.createElement('tr');
+      const rankDisplay = (sortKey === 'pts' && sortDir === -1 && i < 3) ? medals[i] : (i + 1);
+      tr.innerHTML = `
+        <td class="rank-cell">${rankDisplay}</td>
+        <td class="player-col"><span class="player-cell">${avatarHTML(s)}${s.name}</span></td>
+        <td>${s.p}</td><td>${s.w}</td><td>${s.l}</td><td>${s.pf}</td><td>${s.pa}</td>
+        <td class="${s.diff>0?'diff-pos':s.diff<0?'diff-neg':''}">${s.diff>0?'+':''}${s.diff}</td>
+        <td class="pts-cell">${s.pts}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('th[data-key]').forEach(th => {
+      th.classList.toggle('active-sort', th.dataset.key === sortKey);
+    });
+
+    // Champion banner
+    const total = matches.length;
+    const scored = matches.filter(m => m.score1 !== null && m.score2 !== null).length;
+    const banner = document.getElementById('championBanner');
+    if (total > 0 && scored === total){
+      const champ = defaultSorted(stats)[0];
+      banner.hidden = false;
+      banner.innerHTML = `<span class="trophy">🏆</span><span>Champion: ${avatarHTML(champ)} <b>${champ.name}</b> — ${champ.pts} pts</span>`;
+    } else {
+      banner.hidden = true;
+    }
+  }
+
+  document.querySelectorAll('th[data-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (sortKey === key){ sortDir *= -1; }
+      else { sortKey = key; sortDir = (key === 'name') ? 1 : -1; }
+      updateLeaderboard();
+    });
+  });
+
+  function updateProgress(){
+    const total = matches.length;
+    const scored = matches.filter(m => m.score1 !== null && m.score2 !== null).length;
+    document.getElementById('progressFill').style.width = total ? `${(scored/total)*100}%` : '0%';
+    document.getElementById('progressLabel').textContent = `${scored} of ${total} matches scored`;
+    document.getElementById('statusChip').textContent = `${scored}/${total} scored`;
+  }
+
+  document.getElementById('generateBtn').addEventListener('click', generateTournament);
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    matches = [];
+    document.getElementById('leaderboardCard').hidden = true;
+    document.getElementById('matchesCard').hidden = true;
+    document.getElementById('resetBtn').hidden = true;
+    document.getElementById('statusChip').hidden = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // Defaults
+  nameValues = ['Player A','Player B','Player C','Player D','Player E','','','','',''];
+  renderNameGrid();
+</script>
+</body>
+</html>
