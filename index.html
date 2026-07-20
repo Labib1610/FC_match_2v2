@@ -114,6 +114,46 @@
   }
   .coverage-note.perfect{color:var(--win);}
 
+  /* Seed input (setup) */
+  .seed-row{display:flex;flex-direction:column;gap:6px;margin:0 0 16px;}
+  .seed-row label{
+    font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.05em;
+    text-transform:uppercase;font-size:0.8rem;color:var(--text-dim);
+  }
+  .seed-row .seed-hint{
+    text-transform:none;letter-spacing:0;font-weight:500;font-size:0.72rem;opacity:0.8;
+  }
+  .seed-row input{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;color:var(--text);font-family:'Rajdhani',sans-serif;font-weight:600;
+    letter-spacing:0.08em;font-size:0.95rem;outline:none;text-transform:uppercase;
+  }
+  .seed-row input::placeholder{color:var(--text-dim);letter-spacing:0.08em;text-transform:none;opacity:0.7;}
+  .seed-row input:focus{border-color:var(--accent);}
+
+  /* Seed display (schedule) */
+  .seed-display{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:8px 12px;margin-bottom:16px;
+  }
+  .seed-display-label{
+    font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.1em;
+    text-transform:uppercase;font-size:0.7rem;color:var(--text-dim);
+  }
+  .seed-value{
+    font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:0.12em;
+    color:var(--accent);font-size:0.95rem;flex:1;min-width:120px;
+    word-break:break-all;
+  }
+  .seed-copy-btn{
+    background:transparent;border:1px solid var(--border);color:var(--text-dim);
+    font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:0.04em;
+    border-radius:999px;padding:6px 14px;font-size:0.78rem;cursor:pointer;transition:all 0.15s;
+  }
+  .seed-copy-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .seed-copy-btn.copied{border-color:var(--win);color:var(--win);}
+
   .primary-btn{
     width:100%;border:none;border-radius:10px;padding:14px;cursor:pointer;
     background:var(--accent);color:var(--accent-ink);
@@ -141,6 +181,13 @@
   .rank-cell{font-family:'Rajdhani',sans-serif;font-weight:700;width:28px;}
   .player-cell{display:flex;align-items:center;gap:8px;font-weight:600;}
   .player-cell .avatar{width:24px;height:24px;font-size:0.7rem;}
+  .name-edit{
+    background:transparent;border:1px solid transparent;border-radius:6px;
+    color:var(--text);font-family:'Inter',sans-serif;font-weight:600;font-size:0.88rem;
+    padding:4px 6px;width:100%;max-width:150px;outline:none;transition:all 0.15s;cursor:text;
+  }
+  .name-edit:hover{border-color:var(--border);background:var(--surface-2);}
+  .name-edit:focus{border-color:var(--accent);background:var(--surface-2);}
   .pts-cell{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--accent);font-size:1rem;
     font-variant-numeric:tabular-nums;}
   td{font-variant-numeric:tabular-nums;color:var(--text);}
@@ -247,6 +294,12 @@
 
     <div class="name-grid" id="nameGrid"></div>
     <p class="coverage-note" id="coverageNote">Doubles needs at least 4 players. Pick 4–10.</p>
+
+    <div class="seed-row">
+      <label for="seedInput">Seed <span class="seed-hint">(optional — leave blank for random)</span></label>
+      <input type="text" id="seedInput" placeholder="e.g. K7Q-3F9-2XM" autocomplete="off" spellcheck="false">
+    </div>
+
     <button class="primary-btn" id="generateBtn">Shuffle &amp; Generate Matches</button>
   </section>
 
@@ -282,6 +335,13 @@
     </div>
     <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
     <div class="progress-label" id="progressLabel">0 of 0 matches scored</div>
+
+    <div class="seed-display" id="seedDisplay">
+      <span class="seed-display-label">Seed</span>
+      <code class="seed-value" id="seedValue">—</code>
+      <button class="seed-copy-btn" id="seedCopyBtn" type="button">Copy</button>
+    </div>
+
     <div class="matches-grid" id="matchesContainer"></div>
   </section>
 
@@ -297,8 +357,46 @@
   let matches = [];      // {team1:[id,id], team2:[id,id], byes:[id,...], score1, score2}
   let sortKey = 'pts';
   let sortDir = -1;       // -1 desc, 1 asc
+  let currentSeed = null; // seed used for the active tournament
+
+  // ---- Seeded PRNG ----
+  // mulberry32: deterministic, tiny, good enough for shuffling.
+  let _rng = Math.random;           // active random source (swapped in during generation)
+  function rand(){ return _rng(); } // all generation randomness goes through this
+
+  function makeRng(seedStr){
+    // Hash the string seed to a 32-bit integer (xfnv1a), then seed mulberry32.
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < seedStr.length; i++){
+      h ^= seedStr.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    let a = h >>> 0;
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function generateSeed(){
+    // Short, readable, copy-pasteable seed like "K7Q-3F9-2XM".
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < 9; i++){
+      if (i === 3 || i === 6) s += '-';
+      s += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return s;
+  }
 
   function initials(name){ return (name.trim()[0] || '?').toUpperCase(); }
+
+  // Escape a string for safe use inside an HTML attribute value.
+  function escapeAttr(s){
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
 
   function renderNameGrid(){
     document.getElementById('countDisplay').textContent = count;
@@ -349,7 +447,7 @@
   function shuffleArr(arr){
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rand() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
@@ -373,7 +471,7 @@
           if (!used[j] && disjoint(pool[i], pool[j])) candidates.push(j);
         }
         if (candidates.length > 0){
-          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          const pick = candidates[Math.floor(rand() * candidates.length)];
           used[i] = true; used[pick] = true;
           built.push([pool[i], pool[pick]]);
         }
@@ -385,24 +483,37 @@
     return best.built;
   }
 
-  function generateTournament(){
-    players = [];
-    for (let i = 0; i < count; i++){
-      players.push({ id: i, name: (nameValues[i].trim() || `Player ${i+1}`), color: PALETTE[i] });
-    }
-    const edgePairs = buildMatchEdges(count);
-    const allIds = players.map(p => p.id);
+  function generateTournament(seed){
+    // Ignore non-string args (e.g. the click Event passed by addEventListener).
+    const explicitSeed = (typeof seed === 'string') ? seed.trim() : '';
+    // Use the given seed, or read the input box, or make a fresh random one.
+    const inputSeed = document.getElementById('seedInput').value.trim();
+    currentSeed = explicitSeed || inputSeed || generateSeed();
 
-    matches = shuffleArr(edgePairs).map(([eA, eB]) => {
-      const swap = Math.random() > 0.5;
-      const team1 = swap ? eB : eA;
-      const team2 = swap ? eA : eB;
-      const used = new Set([...team1, ...team2]);
-      const byes = allIds.filter(id => !used.has(id));
-      return { team1: shuffleArr(team1), team2: shuffleArr(team2), byes, score1: null, score2: null };
-    });
+    // Install the seeded RNG for the whole generation, then restore Math.random.
+    _rng = makeRng(currentSeed);
+    try {
+      players = [];
+      for (let i = 0; i < count; i++){
+        players.push({ id: i, name: (nameValues[i].trim() || `Player ${i+1}`), color: PALETTE[i] });
+      }
+      const edgePairs = buildMatchEdges(count);
+      const allIds = players.map(p => p.id);
+
+      matches = shuffleArr(edgePairs).map(([eA, eB]) => {
+        const swap = rand() > 0.5;
+        const team1 = swap ? eB : eA;
+        const team2 = swap ? eA : eB;
+        const used = new Set([...team1, ...team2]);
+        const byes = allIds.filter(id => !used.has(id));
+        return { team1: shuffleArr(team1), team2: shuffleArr(team2), byes, score1: null, score2: null };
+      });
+    } finally {
+      _rng = Math.random;
+    }
 
     showTournamentUI();
+    updateSeedDisplay();
 
     renderMatches();
     updateLeaderboard();
@@ -412,6 +523,41 @@
 
   function avatarHTML(p, size){
     return `<span class="avatar" style="background:${p.color};${size ? `width:${size}px;height:${size}px;font-size:${size*0.4}px;` : ''}">${initials(p.name)}</span>`;
+  }
+
+  // Same as avatarHTML but tagged so renamePlayer can live-update its initials.
+  function avatarHTMLTagged(p, size){
+    return `<span class="avatar js-avatar" data-player="${p.id}" style="background:${p.color};${size ? `width:${size}px;height:${size}px;font-size:${size*0.4}px;` : ''}">${initials(p.name)}</span>`;
+  }
+  // A player-name span tagged for live updates.
+  function nameHTMLTagged(p){
+    return `<span class="js-name" data-player="${p.id}">${p.name}</span>`;
+  }
+
+  // Rename a player everywhere from a single edit. `resort` re-sorts the
+  // leaderboard (done on blur/Enter so typing doesn't reshuffle rows mid-edit).
+  function renamePlayer(id, newName, resort){
+    const p = playerById(id);
+    if (!p) return;
+    p.name = newName;
+
+    // Keep the setup grid's stored values in sync (id === index).
+    if (id < nameValues.length) nameValues[id] = newName;
+
+    const display = newName.trim() || `Player ${id + 1}`;
+    const inits = initials(newName || `P${id + 1}`);
+
+    // Live-patch every place this player's name/avatar appears.
+    document.querySelectorAll(`.js-name[data-player="${id}"]`).forEach(el => {
+      if (el.tagName !== 'INPUT') el.textContent = display;
+    });
+    document.querySelectorAll(`.js-avatar[data-player="${id}"]`).forEach(el => { el.textContent = inits; });
+
+    // Champion banner (only shows when finished).
+    const champName = document.querySelector(`.js-champ-name[data-player="${id}"]`);
+    if (champName) champName.textContent = display;
+
+    if (resort) updateLeaderboard();
   }
 
   function renderMatches(){
@@ -427,14 +573,14 @@
       const byeHTML = m.byes.length > 0 ? `
         <div class="bye-row">
           <span>Sitting out:</span>
-          <span class="bye-names">${m.byes.map(id => { const p = playerById(id); return avatarHTML(p,18) + ' ' + p.name; }).join(', ')}</span>
+          <span class="bye-names">${m.byes.map(id => { const p = playerById(id); return avatarHTMLTagged(p,18) + ' ' + nameHTMLTagged(p); }).join(', ')}</span>
         </div>` : '';
 
       card.innerHTML = `
         <div class="match-top">
           <div class="team-block" data-team="1">
             <div class="team-players">
-              ${t1.map(p => `<span class="team-player">${avatarHTML(p)}${p.name}</span>`).join('')}
+              ${t1.map(p => `<span class="team-player">${avatarHTMLTagged(p)}${nameHTMLTagged(p)}</span>`).join('')}
             </div>
             <div class="score-box">
               <button class="step-btn" data-act="dec" data-team="1">−</button>
@@ -445,7 +591,7 @@
           <div class="vs-divider">VS</div>
           <div class="team-block" data-team="2">
             <div class="team-players">
-              ${t2.map(p => `<span class="team-player">${avatarHTML(p)}${p.name}</span>`).join('')}
+              ${t2.map(p => `<span class="team-player">${avatarHTMLTagged(p)}${nameHTMLTagged(p)}</span>`).join('')}
             </div>
             <div class="score-box">
               <button class="step-btn" data-act="dec" data-team="2">−</button>
@@ -535,12 +681,22 @@
       const rankDisplay = (sortKey === 'pts' && sortDir === -1 && i < 3) ? medals[i] : (i + 1);
       tr.innerHTML = `
         <td class="rank-cell">${rankDisplay}</td>
-        <td class="player-col"><span class="player-cell">${avatarHTML(s)}${s.name}</span></td>
+        <td class="player-col"><span class="player-cell">${avatarHTMLTagged(s)}<input class="name-edit js-name" data-player="${s.id}" type="text" value="${escapeAttr(s.name)}" placeholder="Player ${s.id + 1}" autocomplete="off" spellcheck="false"></span></td>
         <td>${s.p}</td><td>${s.w}</td><td>${s.l}</td><td>${s.pf}</td><td>${s.pa}</td>
         <td class="${s.diff>0?'diff-pos':s.diff<0?'diff-neg':''}">${s.diff>0?'+':''}${s.diff}</td>
         <td class="pts-cell">${s.pts}</td>
       `;
       tbody.appendChild(tr);
+    });
+
+    // Wire the editable name inputs.
+    tbody.querySelectorAll('input.name-edit').forEach(inp => {
+      const id = Number(inp.dataset.player);
+      // Live update everywhere while typing (no re-sort, keeps focus).
+      inp.addEventListener('input', () => renamePlayer(id, inp.value, false));
+      // Commit + re-sort on blur or Enter.
+      inp.addEventListener('blur', () => renamePlayer(id, inp.value, true));
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
     });
 
     document.querySelectorAll('th[data-key]').forEach(th => {
@@ -554,7 +710,7 @@
     if (total > 0 && scored === total){
       const champ = defaultSorted(stats)[0];
       banner.hidden = false;
-      banner.innerHTML = `<span class="trophy">🏆</span><span>Champion: ${avatarHTML(champ)} <b>${champ.name}</b> — ${champ.pts} pts</span>`;
+      banner.innerHTML = `<span class="trophy">🏆</span><span>Champion: ${avatarHTMLTagged(champ)} <b class="js-champ-name" data-player="${champ.id}">${champ.name}</b> — ${champ.pts} pts</span>`;
     } else {
       banner.hidden = true;
     }
@@ -581,6 +737,8 @@
 
   document.getElementById('resetBtn').addEventListener('click', () => {
     matches = [];
+    currentSeed = null;
+    document.getElementById('seedInput').value = '';
     document.getElementById('leaderboardCard').hidden = true;
     document.getElementById('matchesCard').hidden = true;
     document.getElementById('resetBtn').hidden = true;
@@ -600,6 +758,34 @@
     document.getElementById('statusChip').hidden = false;
   }
 
+  function updateSeedDisplay(){
+    document.getElementById('seedValue').textContent = currentSeed || '—';
+    document.getElementById('seedInput').value = currentSeed || '';
+  }
+
+  document.getElementById('seedCopyBtn').addEventListener('click', () => {
+    if (!currentSeed) return;
+    const btn = document.getElementById('seedCopyBtn');
+    const done = () => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(currentSeed).then(done).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+    function fallbackCopy(){
+      const ta = document.createElement('textarea');
+      ta.value = currentSeed;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch(e){}
+      ta.remove();
+    }
+  });
+
   function exportTournament(){
     if (!matches.length){ alert('Generate a tournament first.'); return; }
     const suggested = 'tournament';
@@ -612,6 +798,7 @@
       version: SAVE_VERSION,
       name: clean,
       savedAt: new Date().toISOString(),
+      seed: currentSeed,
       count,
       players,   // [{id,name,color}]
       matches,   // [{team1,team2,byes,score1,score2}]
@@ -636,6 +823,7 @@
 
     // Restore state
     count = data.count || data.players.length;
+    currentSeed = data.seed || null;
     players = data.players.map(p => ({ id: p.id, name: p.name, color: p.color }));
     matches = data.matches.map(m => ({
       team1: m.team1.slice(),
@@ -651,6 +839,7 @@
     renderNameGrid();
 
     showTournamentUI();
+    updateSeedDisplay();
     renderMatches();
     restoreScoreInputs();  // put saved scores into the number boxes + winner highlight
     updateLeaderboard();
