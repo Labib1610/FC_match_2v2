@@ -223,8 +223,11 @@
     </div>
     <div class="topbar-right">
       <span class="status-chip" id="statusChip" hidden></span>
+      <button class="ghost-btn" id="importBtn">Import</button>
+      <button class="ghost-btn" id="exportBtn" hidden>Export</button>
       <button class="ghost-btn" id="resetBtn" hidden>Reset</button>
     </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
 
   <section class="card" id="setupCard">
@@ -399,10 +402,7 @@
       return { team1: shuffleArr(team1), team2: shuffleArr(team2), byes, score1: null, score2: null };
     });
 
-    document.getElementById('leaderboardCard').hidden = false;
-    document.getElementById('matchesCard').hidden = false;
-    document.getElementById('resetBtn').hidden = false;
-    document.getElementById('statusChip').hidden = false;
+    showTournamentUI();
 
     renderMatches();
     updateLeaderboard();
@@ -584,8 +584,112 @@
     document.getElementById('leaderboardCard').hidden = true;
     document.getElementById('matchesCard').hidden = true;
     document.getElementById('resetBtn').hidden = true;
+    document.getElementById('exportBtn').hidden = true;
     document.getElementById('statusChip').hidden = true;
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // ---- Save / Load tournament as JSON ----
+  const SAVE_VERSION = 1;
+
+  function showTournamentUI(){
+    document.getElementById('leaderboardCard').hidden = false;
+    document.getElementById('matchesCard').hidden = false;
+    document.getElementById('resetBtn').hidden = false;
+    document.getElementById('exportBtn').hidden = false;
+    document.getElementById('statusChip').hidden = false;
+  }
+
+  function exportTournament(){
+    if (!matches.length){ alert('Generate a tournament first.'); return; }
+    const suggested = 'tournament';
+    const name = prompt('Name this tournament (used as the file name):', suggested);
+    if (name === null) return; // cancelled
+    const clean = (name.trim() || suggested).replace(/[\\/:*?"<>|]+/g, '-');
+
+    const data = {
+      app: 'doubles-up',
+      version: SAVE_VERSION,
+      name: clean,
+      savedAt: new Date().toISOString(),
+      count,
+      players,   // [{id,name,color}]
+      matches,   // [{team1,team2,byes,score1,score2}]
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${clean}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importTournament(data){
+    if (!data || data.app !== 'doubles-up' || !Array.isArray(data.players) || !Array.isArray(data.matches)){
+      alert('That file is not a valid Doubles Up tournament.');
+      return;
+    }
+
+    // Restore state
+    count = data.count || data.players.length;
+    players = data.players.map(p => ({ id: p.id, name: p.name, color: p.color }));
+    matches = data.matches.map(m => ({
+      team1: m.team1.slice(),
+      team2: m.team2.slice(),
+      byes: (m.byes || []).slice(),
+      score1: (m.score1 === undefined ? null : m.score1),
+      score2: (m.score2 === undefined ? null : m.score2),
+    }));
+
+    // Reflect names back into the setup grid too (in case user resets)
+    nameValues = new Array(MAX_PLAYERS).fill('');
+    players.forEach((p, i) => { if (i < MAX_PLAYERS) nameValues[i] = p.name; });
+    renderNameGrid();
+
+    showTournamentUI();
+    renderMatches();
+    restoreScoreInputs();  // put saved scores into the number boxes + winner highlight
+    updateLeaderboard();
+    updateProgress();
+
+    document.getElementById('statusChip').textContent = data.name ? `Loaded: ${data.name}` : 'Tournament loaded';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function restoreScoreInputs(){
+    matches.forEach((m, idx) => {
+      const card = document.querySelector(`.match-card[data-idx="${idx}"]`);
+      if (!card) return;
+      const i1 = card.querySelector('input[data-team="1"]');
+      const i2 = card.querySelector('input[data-team="2"]');
+      if (i1) i1.value = (m.score1 === null ? '' : m.score1);
+      if (i2) i2.value = (m.score2 === null ? '' : m.score2);
+
+      const t1block = card.querySelector('.team-block[data-team="1"]');
+      const t2block = card.querySelector('.team-block[data-team="2"]');
+      t1block.classList.remove('winner'); t2block.classList.remove('winner');
+      if (m.score1 !== null && m.score2 !== null && m.score1 !== m.score2){
+        (m.score1 > m.score2 ? t1block : t2block).classList.add('winner');
+      }
+    });
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', exportTournament);
+  document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+  document.getElementById('importFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { importTournament(JSON.parse(reader.result)); }
+      catch (err){ alert('Could not read that file — it is not valid JSON.'); }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // allow re-importing the same file
   });
 
   // Defaults
